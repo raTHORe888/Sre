@@ -6,7 +6,7 @@
 
 ## Overview
 
-This section contains **7 real-world interview/design questions** on streaming infrastructure at scale, with **professional SRE answers** including workflows, metrics, and best practices.
+This section contains **8 real-world interview/design question sets** on streaming infrastructure, platform engineering, and cloud reliability, with **professional SRE answers/workflows**.
 
 **Context**: All scenarios assume **high-scale streaming** (50M+ concurrent viewers), **multi-region deployment**, and **live event coverage** (sports, entertainment).
 
@@ -91,6 +91,22 @@ This section contains **7 real-world interview/design questions** on streaming i
 
 ---
 
+### 8. [Infra, Kubernetes, and Cloud Patterns (45 mins)](08-infra-kubernetes-cloud-patterns.md)
+**Problem Set**: Advanced architecture and operations scenarios across EKS, Kustomize, S3 replication, systemd recovery, lateral movement mitigation, stateful Helm upgrades, hybrid-cloud routing, Terraform state recovery, and Linux troubleshooting.
+
+**Topics**:
+- Multi-tenant cluster isolation
+- Kustomize overlay strategy
+- Secure cross-region replication
+- Node-level auto-recovery
+- Lateral movement detection/mitigation
+- Zero-downtime stateful upgrades
+- Hybrid cloud boundaries
+- Terraform state recovery
+- Bash diagnostics
+
+---
+
 ## How to Use
 
 1. **Start with problem statement** — understand the scenario
@@ -112,6 +128,7 @@ This section contains **7 real-world interview/design questions** on streaming i
 | 5 | Observability | Metrics pipeline transparency |
 | 6 | Proactive Detection | Deep health checks |
 | 7 | Blameless Response | Rapid rollback + comms |
+| 8 | Platform Reliability | Isolation, recovery, and cross-cloud controls |
 
 ---
 
@@ -180,12 +197,13 @@ Monitor these metrics together:
 
 ## Summary
 
-These 7 questions cover:
+These 8 question sets cover:
 - **Scalability**: From 50M to 100M+ viewers
 - **Reliability**: Survive zone failures, network issues
 - **Performance**: Sub-30s latency for live, differentia routing for VOD
 - **Observability**: Know what's happening at massive scale
 - **Incident Response**: Rapid detection and rollback
+- **Platform Patterns**: Multi-tenant isolation, hybrid routing, and IaC recovery
 
 Each answer provides a **production-ready blueprint** that can be adapted to your infrastructure.
 
