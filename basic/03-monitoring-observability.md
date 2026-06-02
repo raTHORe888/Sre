@@ -79,7 +79,7 @@ Observability is the ability to understand system behavior by examining its exte
 
 **Tools**: Jaeger, Zipkin, Datadog, New Relic
 
-### Observability Workflow
+### Observability Troubleshooting Workflow
 
 ```mermaid
 flowchart TD
@@ -90,6 +90,27 @@ flowchart TD
     E -->|Yes| F[Query traces: which service is slow?]
     F --> G[Deep dive: Database query analysis]
     G --> H[Fix identified: add index]
+    C -->|No| I["Check capacity:<br/>CPU, Memory, Disk"]
+    I --> J{Saturation?}
+    J -->|Yes| K[Scale up resources]
+    J -->|No| L[Check network latency]
+    L --> M[Investigate external factors]
+```
+
+### Complete Observability Pipeline
+
+```mermaid
+flowchart LR
+    APP["Applications<br/>(instrumented)"] --> COLLECT["Collectors<br/>(SDKs)"]
+    COLLECT --> STORE["Metrics Store<br/>(Prometheus)"]
+    COLLECT --> LSTORE["Log Store<br/>(Loki/ELK)"]
+    COLLECT --> TSTORE["Trace Store<br/>(Jaeger)"]
+    STORE --> QUERY["Query & Alert<br/>(AlertManager)"]
+    LSTORE --> DEBUG["Search Logs<br/>(Kibana)"]
+    TSTORE --> PERF["Trace Analysis<br/>(Jaeger UI)"]
+    QUERY --> PAGE["Page On-Call<br/>(PagerDuty)"]
+    DEBUG --> DASH["Dashboards<br/>(Grafana)"]
+    PERF --> DASH
 ```
 
 ---

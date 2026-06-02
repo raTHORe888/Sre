@@ -88,6 +88,23 @@ flowchart TD
     F --> G[Review monthly & adjust]
 ```
 
+### Error Budget Consumption Workflow
+
+```mermaid
+flowchart TD
+    START[Start of Month] --> TRACK[Track SLI: Success Rate]
+    TRACK --> CALC[Calculate Error Budget Burn]
+    CALC --> CHECK{Budget Remaining?}
+    CHECK -->|Greater than 50%| STABLE["✓ Green: Deploy freely"]
+    CHECK -->|20 to 50%| CAUTION["⚠️  Yellow: Careful with deploys"]
+    CHECK -->|Less than 20%| FREEZE["🔴 Red: Freeze features"]
+    STABLE --> INCIDENT{Incident?}
+    CAUTION --> INCIDENT
+    FREEZE --> INCIDENT
+    INCIDENT -->|Burn accelerates| ADJUST[Adjust deployment strategy]
+    ADJUST --> END[End of Month Review]
+```
+
 ---
 
 ## Toil Measurement & Automation

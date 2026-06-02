@@ -56,7 +56,7 @@ flowchart TD
 
 ## Escalation & Communication
 
-### Escalation Policy
+### Escalation Policy & Workflow
 
 **On-Call Engineer** → detect incident → classify → page escalation chain
 
@@ -64,6 +64,24 @@ flowchart TD
 2. **No ack within 5 min**: Secondary on-call or manager alerted
 3. **Investigation stalled after 15 min**: Escalate to senior engineer / manager
 4. **Unresolved after 30 min**: Engage incident commander (see below)
+
+### Escalation Tree Diagram
+
+```mermaid
+graph TD
+    ALERT["Alert Fires"] --> ONCALL["Tier 1: On-Call Engineer<br/>(T+0-5 min)"]
+    ONCALL --> CHECK{"Can mitigate<br/>with runbook?"}
+    CHECK -->|Yes| MITIGATE["Mitigate & Monitor"]
+    CHECK -->|No| PAGE2["Tier 2: Service Lead<br/>(T+5-15 min)"]
+    PAGE2 --> SENIOR{"Still stuck?"}
+    SENIOR -->|Yes| PAGE3["Tier 3: Manager<br/>(T+15-30 min)"]
+    SENIOR -->|No| RESOLVE["Resolve & Document"]
+    PAGE3 --> IC["Incident Commander<br/>Mobilize team"]
+    IC --> WARROOM["War Room:<br/>- Multi-team sync<br/>- Customer comms<br/>- Decision point"]
+    MITIGATE --> POST["Postmortem"]
+    RESOLVE --> POST
+    WARROOM --> POST
+```
 
 ### Communication Channels During Incident
 

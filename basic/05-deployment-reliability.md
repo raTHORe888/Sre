@@ -61,6 +61,29 @@ After deployment:
 
 ---
 
+## Deployment Strategy Comparison
+
+```mermaid
+flowchart TD
+    RELEASE["New Version Ready"] --> STRATEGY{"Choose Strategy"}
+    STRATEGY -->|Fast & Risky| BIGBANG["Big Bang<br/>100% instantly<br/>Rollback: slow"]
+    STRATEGY -->|Gradual & Safe| CANARY["Canary<br/>5% → 25% → 100%<br/>45-60 min"]
+    STRATEGY -->|Zero Downtime| BLUEGREEN["Blue-Green<br/>Full swap<br/>5 min"]
+    STRATEGY -->|Low Risk| FEATURE["Feature Flag<br/>Code shipped<br/>Flag controls"]
+    BIGBANG --> RESULT1{"Issues?"}
+    CANARY --> RESULT2{"Issues?"}
+    BLUEGREEN --> RESULT3{"Issues?"}
+    FEATURE --> RESULT4{"Issues?"}
+    RESULT1 -->|Yes| ROLLBACK1["Slow rollback<br/>20-30 min"]
+    RESULT2 -->|Yes| ROLLBACK2["Auto-rollback<br/>2-5 min"]
+    RESULT3 -->|Yes| ROLLBACK3["Instant rollback<br/>less than 1 min"]
+    RESULT4 -->|Yes| ROLLBACK4["Feature flag off<br/>less than 1 min"]
+    ROLLBACK1 --> POSTMORTEM["Post-mortem"]
+    ROLLBACK2 --> POSTMORTEM
+    ROLLBACK3 --> POSTMORTEM
+    ROLLBACK4 --> POSTMORTEM
+```
+
 ## Canary Deployments
 
 ### Concept: Release to Small Percentage First
@@ -177,7 +200,26 @@ if (featureFlags.isEnabled("new_payment_flow")) {
 }
 ```
 
-### Workflow with Feature Flags
+### Feature Flag Rollout Workflow
+
+```mermaid
+flowchart TD
+    DEPLOY["Deploy with Flag OFF"] --> TEST["Offline Testing<br/>- QA validates<br/>- Engineers test<br/>- No user impact"]
+    TEST --> INTERNAL["Enable for Internal<br/>- Employees use it<br/>- Monitor metrics<br/>- 0.1% of traffic"]
+    INTERNAL --> CHECK1{All good?}
+    CHECK1 -->|No| DISABLE["Disable flag<br/>Investigate"]
+    DISABLE --> FIX["Fix issue<br/>Redeploy code"]
+    FIX --> TEST
+    CHECK1 -->|Yes| RAMP1["Increase to 5%<br/>Monitor for 30 min"]
+    RAMP1 --> CHECK2{Errors spike?}
+    CHECK2 -->|Yes| ROLLBACK["Auto-rollback<br/>Disable flag"]
+    CHECK2 -->|No| RAMP2["Increase to 25%<br/>Monitor 30 min"]
+    RAMP2 --> CHECK3{Still healthy?}
+    CHECK3 -->|Yes| RAMP3["Increase to 100%<br/>Monitor 60 min"]
+    CHECK3 -->|No| ROLLBACK
+    RAMP3 --> SUCCESS["Feature stable<br/>1 week monitoring"]
+    SUCCESS --> CLEANUP["Remove flag code<br/>Permanent feature"]
+```
 
 1. **Deploy code with flag OFF**: New feature shipped but not active
 2. **Validate offline**: Engineers test new code; no user impact
@@ -209,6 +251,21 @@ T+120    100%        0.09%         158ms      ✓ Full rollout complete
 ---
 
 ## Load Testing & Capacity Planning
+
+### Load Testing Workflow
+
+```mermaid
+flowchart TD
+    PLAN["Plan Load Test"] --> DEFINE["Define Scenario<br/>- Virtual users<br/>- Ramp time<br/>- Duration"]
+    DEFINE --> EXECUTE["Execute Test<br/>- Gradually increase load<br/>- Monitor metrics<br/>- Collect data"]
+    EXECUTE --> ANALYZE["Analyze Results<br/>- Compare to baseline<br/>- Find breaking points<br/>- Identify bottlenecks"]
+    ANALYZE --> PASS{Test passed?}
+    PASS -->|Yes| NEXT["Ready for<br/>production event"]
+    PASS -->|No| FINDINGS["Findings:<br/>- Database bottleneck<br/>- Memory leak<br/>- Slow endpoint"]
+    FINDINGS --> IMPROVE["Improve Capacity<br/>- Scale resources<br/>- Optimize code<br/>- Adjust config"]
+    IMPROVE --> RETEST["Re-test<br/>Repeat until pass"]
+    RETEST --> ANALYZE
+```
 
 ### Load Testing Types
 
@@ -271,6 +328,25 @@ Action: Auto-scaling configured. Event readiness: Go.
 ### Concept: Intentionally Break Things to Find Weaknesses
 
 Instead of hoping systems are resilient, test by failing components intentionally.
+
+### Chaos Engineering Workflow
+
+```mermaid
+flowchart TD
+    HYPO["Define Hypothesis<br/>Example: If pod dies,<br/>traffic reroutes OK"] --> DESIGN["Design Experiment<br/>- Kill 1 API pod<br/>- Monitor recovery<br/>- Expected: 5s downtime"]
+    DESIGN --> SANDBOX["Run in Test Env<br/>or with Feature Flag<br/>No production risk"]
+    SANDBOX --> EXECUTE["Execute Chaos<br/>- Trigger failure<br/>- Record metrics<br/>- Observe behavior"]
+    EXECUTE --> RESULT{"Did it fail<br/>as expected?"}
+    RESULT -->|Yes| EXPECTED["✓ Expected behavior<br/>System is resilient"]
+    RESULT -->|No, unexpected| FOUND["❌ Found vulnerability!<br/>Add to backlog"]
+    RESULT -->|No, expected fail| GAP["❌ Resilience gap<br/>Must fix before prod"]
+    EXPECTED --> GRADUATE["Graduate to<br/>monthly drill"]
+    FOUND --> IMPROVE["Fix & Redeploy<br/>Add monitoring"]
+    GAP --> IMPROVE
+    IMPROVE --> RETEST["Re-test after fix"]
+    RETEST --> EXECUTE
+    GRADUATE --> SCHEDULE["Add to Calendar:<br/>Monthly chaos tests"]
+```
 
 ### Chaos Test Examples
 

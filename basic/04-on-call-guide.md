@@ -155,6 +155,43 @@ T+1:00   Service recovered
 T+1:15   Initial postmortem started; action items assigned
 ```
 
+### On-Call Shift Day Timeline
+
+```mermaid
+flowchart TD
+    START["Monday 9:00 AM<br/>On-Call Shift Starts"] --> HANDOFF["Handoff 15 min<br/>- Health check<br/>- Recent incidents<br/>- Test alert"]
+    HANDOFF --> MONITOR["Monitor & Respond<br/>24 hours"]
+    MONITOR --> ALERT["Alert Fires?"]
+    ALERT -->|SEV-1| MOBILIZE["Immediate Response<br/>- War room<br/>- Investigation<br/>- Mitigation"]
+    ALERT -->|SEV-2/3| RESPOND["Quick Response<br/>- Check runbook<br/>- Fix or escalate"]
+    ALERT -->|SEV-4| LOG["Log in Slack<br/>Review later"]
+    RESPOND --> POSTMORTEM["Document<br/>Schedule postmortem"]
+    MOBILIZE --> POSTMORTEM
+    POSTMORTEM --> HANDOFF2["Tuesday 9:00 AM<br/>Handoff to Next On-Call"]
+    HANDOFF2 --> END["Shift Ends<br/>Off-duty"]
+```
+
+### Alert Triage Decision Tree (Detailed)
+
+```mermaid
+flowchart TD
+    ALERT["Alert Fires"] --> ACK["Acknowledge Alert"]
+    ACK --> DASH["Check Dashboard"]
+    DASH --> IMPACT{"Customer<br/>Impact?"}
+    IMPACT -->|All users| SEV1["SEV-1<br/>Declare Incident<br/>Page Team"]
+    IMPACT -->|Many users| CHECK_RATE{"Error Rate<br/>greater than 50%?"}
+    CHECK_RATE -->|Yes| SEV2["SEV-2<br/>Page On-Call<br/>Investigate"]
+    CHECK_RATE -->|No| SEV3["SEV-3<br/>Slack Alert<br/>No page"]
+    IMPACT -->|Few users| SEV3
+    IMPACT -->|None| SEV4["SEV-4<br/>Log only"]
+    SEV1 --> MITIGATE["MITIGATE:<br/>- Runbook<br/>- Scale/restart<br/>- Rollback"]
+    SEV2 --> MITIGATE
+    SEV3 --> INVESTIGATE["INVESTIGATE:<br/>- Root cause<br/>- Log search"]
+    MITIGATE --> RECOVER["Monitor Recovery"]
+    INVESTIGATE --> POSTMORTEM["Post to Slack<br/>Schedule PM"]
+    RECOVER --> POSTMORTEM
+```
+
 ### Investigation Protocol
 
 1. **Check dashboard first**: Are the affected metrics/services visible?
