@@ -132,3 +132,9 @@ Likely causes:
 - DNS stale SRV records
 
 Use parallel checks with PowerShell + CMD and close with replication + DNS fix.
+
+---
+
+## More Kerberos-Focused Q&A
+
+For a dedicated Kerberos-only interview bank, see [10-kerberos-interview-qa.md](10-kerberos-interview-qa.md).
