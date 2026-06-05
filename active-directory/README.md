@@ -19,6 +19,13 @@
 | 8 | [08-ad-hybrid-azure-entra.md](08-ad-hybrid-azure-entra.md) | AD Connect, Entra ID hybrid, SSO, federation |
 | 9 | [09-ad-interview-scenarios.md](09-ad-interview-scenarios.md) | Hard SRE interview questions with pro answers |
 | 10 | [10-kerberos-interview-qa.md](10-kerberos-interview-qa.md) | Kerberos-focused AD interview Q&A with troubleshooting |
+| 11 | [11-ad-automation-sre-integration.md](11-ad-automation-sre-integration.md) | Automation module, weekly scorecard, SLI/SLO incident model |
+
+### Automation Artifacts
+
+- [automation/ADReliability.psm1](automation/ADReliability.psm1)
+- [automation/Invoke-ADWeeklyScorecard.ps1](automation/Invoke-ADWeeklyScorecard.ps1)
+- [automation/identity-incident-runbook-sli-slo.md](automation/identity-incident-runbook-sli-slo.md)
 
 ---
 
