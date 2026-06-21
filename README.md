@@ -68,6 +68,20 @@ AWS-first SRE operating guidance for reliability, observability, incident respon
 1. **[AWS SRE Core Topics and Workflows](cloud-operations/aws-sre-core-topics.md)** — SLOs, observability, incident response, automation, security, CI/CD, migration
 1. **[AWS SRE Operating Model](cloud-operations/aws-sre-operating-model.md)** — SLOs, automation, incident response, AWS environment workflows
 
+### [Linux and Infrastructure SRE](linux-infrastructure/)
+
+Linux engineering, bare metal, performance tuning, configuration management, object storage, hardware, and capacity planning. Each topic has a paired Q&A file with 10 interview-grade questions in [linux-infrastructure/questions/](linux-infrastructure/questions/README.md).
+
+1. **[Linux and Infrastructure Index](linux-infrastructure/README.md)** — entry point for all topics
+2. **[Linux Systems Administration at Scale](linux-infrastructure/01-linux-systems-administration-at-scale.md)**
+3. **[Linux Performance Tuning](linux-infrastructure/02-linux-performance-tuning.md)**
+4. **[Network and Storage Troubleshooting](linux-infrastructure/03-network-storage-troubleshooting.md)**
+5. **[Configuration Management (Chef, Ansible)](linux-infrastructure/04-config-management-chef-ansible.md)**
+6. **[Clustered Object Storage Operations](linux-infrastructure/05-clustered-object-storage-operations.md)**
+7. **[Hardware Troubleshooting and Lifecycle](linux-infrastructure/06-hardware-troubleshooting-lifecycle.md)**
+8. **[Capacity Planning and Growth Forecasting](linux-infrastructure/07-capacity-planning-forecasting.md)**
+9. **[Technical Leadership and Project Management](linux-infrastructure/08-technical-leadership-project-management.md)**
+
 ### [Basic SRE Concepts](basic/)
 
 Start here to understand SRE fundamentals:
