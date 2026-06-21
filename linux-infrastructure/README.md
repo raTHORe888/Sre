@@ -32,6 +32,12 @@ Many SRE roles, especially in storage and infrastructure-heavy organizations, re
 
 Each topic has a paired Q&A file with **10 interview-grade questions** in [questions/](questions/README.md).
 
+## Deep-dive Learning Tracks
+
+| Track | Description | Index |
+|-------|-------------|-------|
+| **Ansible** | Comprehensive 13-topic learning path from fundamentals to operating Ansible at scale on Linux fleets | [ansible/README.md](ansible/README.md) |
+
 ## Sources (public only)
 
 - [The Linux Documentation Project](https://tldp.org/)
