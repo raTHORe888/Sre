@@ -17,6 +17,21 @@ This repository contains SRE (Site Reliability Engineering) learning materials c
 ```
 sre/
 ├── README.md (this file)
+├── AWS/
+│   ├── README.md
+│   ├── 01-slo-sli-error-budgets.md
+│   ├── 02-observability-monitoring.md
+│   ├── 03-incident-response-oncall.md
+│   ├── 04-automation-iac.md
+│   ├── 05-cicd-release-reliability.md
+│   ├── 06-security-iam-kms-secrets.md
+│   ├── 07-data-services-reliability.md
+│   ├── 08-eks-docker-platform-ops.md
+│   ├── 09-migration-readiness-architecture-review.md
+│   └── 10-git-workflows-collaboration.md
+├── cloud-operations/
+│   ├── aws-sre-core-topics.md
+│   └── aws-sre-operating-model.md
 └── basic/
     ├── README.md (Overview of SRE basics)
     ├── 01-sre-fundamentals.md
@@ -29,6 +44,29 @@ sre/
 ---
 
 ## Quick Navigation
+
+### [AWS Topics](AWS/)
+
+AWS-first SRE learning path split into focused, workflow-driven docs:
+
+1. **[AWS Topics Index](AWS/README.md)** — entry point for all AWS SRE docs
+2. **[SLOs, SLIs, and Error Budgets](AWS/01-slo-sli-error-budgets.md)**
+3. **[Observability and Monitoring](AWS/02-observability-monitoring.md)**
+4. **[Incident Response and On-Call](AWS/03-incident-response-oncall.md)**
+5. **[Automation, IaC, and Runbooks](AWS/04-automation-iac.md)**
+6. **[CI/CD and Release Reliability](AWS/05-cicd-release-reliability.md)**
+7. **[Security, IAM, KMS, and Secrets](AWS/06-security-iam-kms-secrets.md)**
+8. **[Databases, Storage, and Reliability](AWS/07-data-services-reliability.md)**
+9. **[Kubernetes, EKS, Docker, and Platform Ops](AWS/08-eks-docker-platform-ops.md)**
+10. **[Migration Readiness and Architecture Review](AWS/09-migration-readiness-architecture-review.md)**
+11. **[Git Workflows and Collaboration](AWS/10-git-workflows-collaboration.md)**
+
+### [Cloud Operations](cloud-operations/)
+
+AWS-first SRE operating guidance for reliability, observability, incident response, and environment design:
+
+1. **[AWS SRE Core Topics and Workflows](cloud-operations/aws-sre-core-topics.md)** — SLOs, observability, incident response, automation, security, CI/CD, migration
+1. **[AWS SRE Operating Model](cloud-operations/aws-sre-operating-model.md)** — SLOs, automation, incident response, AWS environment workflows
 
 ### [Basic SRE Concepts](basic/)
 
