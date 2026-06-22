@@ -82,6 +82,121 @@ flowchart TD
     I --> J[Audit log records who/what/when]
 ```
 
+## End-to-end example: build an EE, create a Job Template, run it
+
+### 1. Define the Execution Environment
+
+```yaml
+# execution-environment.yml
+version: 3
+images:
+  base_image:
+    name: quay.io/ansible/awx-ee:latest
+dependencies:
+  galaxy: requirements.yml
+  python: requirements.txt
+  system: bindep.txt
+```
+
+```yaml
+# requirements.yml
+collections:
+  - name: ansible.posix
+  - name: community.general
+  - name: amazon.aws
+```
+
+```
+# requirements.txt
+boto3>=1.34
+botocore>=1.34
+```
+
+```
+# bindep.txt
+git [platform:rpm]
+openssh-clients [platform:rpm]
+```
+
+Build and push:
+
+```bash
+ansible-builder build -t registry.example.com/awx/web-ee:1.0
+docker push registry.example.com/awx/web-ee:1.0
+```
+
+### 2. Define resources as code via the AWX CLI
+
+```bash
+# Project
+awx projects create \
+  --name "platform-playbooks" \
+  --scm_type git \
+  --scm_url https://github.com/example/platform-playbooks.git \
+  --scm_branch main
+
+# Inventory
+awx inventories create --name "prod" --organization Default
+
+# Credential (SSH machine cred)
+awx credentials create \
+  --name "prod-ssh" --credential_type "Machine" \
+  --inputs '{"username":"deploy","ssh_key_data":"@~/.ssh/awx_deploy"}'
+
+# Job Template
+awx job_templates create \
+  --name "Deploy web" \
+  --project "platform-playbooks" \
+  --playbook "playbooks/web.yml" \
+  --inventory "prod" \
+  --execution_environment "web-ee:1.0" \
+  --ask_variables_on_launch true
+```
+
+### 3. Launch the Job Template
+
+```bash
+awx job_templates launch --name "Deploy web" \
+  --extra_vars '{"app_version":"1.4.2","env":"prod"}'
+```
+
+### 4. Survey JSON
+
+```json
+{
+  "name": "Deploy web survey",
+  "description": "Inputs for web deploy",
+  "spec": [
+    {
+      "question_name": "App version",
+      "variable": "app_version",
+      "type": "text",
+      "required": true
+    },
+    {
+      "question_name": "Environment",
+      "variable": "env",
+      "type": "multiplechoice",
+      "choices": "dev\nstaging\nprod",
+      "required": true,
+      "default": "staging"
+    }
+  ]
+}
+```
+
+### 5. Trigger from CI (GitHub Actions)
+
+```yaml
+- name: Launch AWX job
+  run: |
+    curl -sSf -X POST \
+      -H "Authorization: Bearer $AWX_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"extra_vars":{"app_version":"${{ github.sha }}"}}' \
+      https://awx.example.com/api/v2/job_templates/42/launch/
+```
+
 ## RBAC model
 
 - **Roles**: Admin, Auditor, Use, Read, etc., scoped to objects (project, inventory, job template).

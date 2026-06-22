@@ -211,6 +211,70 @@ Verbose logging (`-vvv`) is slow. Use it for debugging, not bulk runs. Set `stdo
 - Use bastions sparingly; each hop adds latency.
 - For very large fleets, deploy controllers (or AWX execution nodes) **close** to the hosts they manage.
 
+## End-to-end tuning example
+
+A before-and-after run on a 200-host fleet.
+
+### Baseline `ansible.cfg`
+
+```ini
+[defaults]
+forks = 5
+```
+
+Run and time it:
+
+```bash
+time ansible-playbook -i inventory site.yml
+# real    18m42s
+```
+
+### Tuned `ansible.cfg`
+
+```ini
+[defaults]
+forks = 50
+gather_subset = !all,min,network
+fact_caching = jsonfile
+fact_caching_connection = /var/tmp/ansible_fact_cache
+fact_caching_timeout = 7200
+internal_poll_interval = 0.001
+
+[ssh_connection]
+pipelining = True
+ssh_args = -o ControlMaster=auto -o ControlPersist=60s -o PreferredAuthentications=publickey
+control_path = /tmp/ansible-%%h-%%p-%%r
+```
+
+Run again:
+
+```bash
+time ansible-playbook -i inventory site.yml
+# real    4m11s
+```
+
+Typical 3-5x speedup from enabling pipelining, raising forks, and trimming fact gathering.
+
+### Profile to find the slowest tasks
+
+```bash
+ANSIBLE_CALLBACKS_ENABLED=ansible.posix.profile_tasks \
+  ansible-playbook site.yml
+```
+
+Example output:
+
+```
+Monday  21 June 2026  10:14:55 +0000 (0:01:43.122)
+=============================================================
+Install base packages ----------------------------- 92.41s
+Gather minimal facts ------------------------------ 18.30s
+Render nginx config ------------------------------- 12.04s
+Restart nginx --------------------------------------  3.11s
+```
+
+Focus the next round of tuning on the slowest tasks.
+
 ## Workflow
 
 ```mermaid

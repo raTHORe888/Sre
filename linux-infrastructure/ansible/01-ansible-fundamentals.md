@@ -86,6 +86,72 @@ Bad (not idempotent):
 
 The second task always reports `changed: true` and may break if the package is already present.
 
+## End-to-end hello world
+
+A minimal example you can run in 5 minutes.
+
+### 1. Inventory file
+
+```ini
+# hosts.ini
+[web]
+web1.example.com
+web2.example.com
+
+[all:vars]
+ansible_user=deploy
+```
+
+### 2. Playbook
+
+```yaml
+# hello.yml
+- name: Hello World
+  hosts: web
+  become: true
+  tasks:
+    - name: Install nginx
+      ansible.builtin.package:
+        name: nginx
+        state: present
+
+    - name: Ensure nginx is running
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+```
+
+### 3. Run it
+
+```bash
+ansible-playbook -i hosts.ini hello.yml
+```
+
+### 4. Expected output
+
+```
+PLAY [Hello World] *********************************
+
+TASK [Gathering Facts] *****************************
+ok: [web1.example.com]
+ok: [web2.example.com]
+
+TASK [Install nginx] *******************************
+changed: [web1.example.com]
+changed: [web2.example.com]
+
+TASK [Ensure nginx is running] *********************
+ok: [web1.example.com]
+ok: [web2.example.com]
+
+PLAY RECAP *****************************************
+web1.example.com  : ok=3 changed=1 unreachable=0 failed=0
+web2.example.com  : ok=3 changed=1 unreachable=0 failed=0
+```
+
+Run the same command again — the second time everything reports `ok` (no changes). That is **idempotency** in action.
+
 ## When to use Ansible
 
 Great fit:

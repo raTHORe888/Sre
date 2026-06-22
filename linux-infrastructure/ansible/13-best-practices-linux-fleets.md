@@ -145,6 +145,133 @@ ansible-platform/
 | Compliance scan | Scheduled `--check` run with structured output, fed to a dashboard |
 | Emergency mitigation | Pre-built playbook with explicit scope and approval prompt |
 
+### Example: patch the OS fleet safely
+
+```yaml
+# playbooks/maintenance/patch.yml
+- name: Patch web fleet in waves
+  hosts: web
+  become: true
+  serial:
+    - 1
+    - "10%"
+    - "50%"
+    - "100%"
+  max_fail_percentage: 5
+  tasks:
+    - name: Drain host from load balancer
+      ansible.builtin.uri:
+        url: "http://lb/api/drain/{{ inventory_hostname }}"
+        method: POST
+      delegate_to: localhost
+
+    - name: Upgrade all packages
+      ansible.builtin.package:
+        name: "*"
+        state: latest
+        update_cache: true
+
+    - name: Reboot if needed
+      ansible.builtin.reboot:
+        msg: "Reboot after patching"
+        reboot_timeout: 600
+
+    - name: Wait for app port
+      ansible.builtin.wait_for:
+        host: "{{ inventory_hostname }}"
+        port: 8080
+        timeout: 300
+      delegate_to: localhost
+
+    - name: Re-add host to load balancer
+      ansible.builtin.uri:
+        url: "http://lb/api/enable/{{ inventory_hostname }}"
+        method: POST
+      delegate_to: localhost
+```
+
+### Example: rotate authorized_keys from a source of truth
+
+```yaml
+# playbooks/maintenance/rotate-keys.yml
+- name: Sync deploy user keys
+  hosts: all
+  become: true
+  tasks:
+    - name: Ensure deploy user exists
+      ansible.builtin.user:
+        name: deploy
+        shell: /bin/bash
+        state: present
+
+    - name: Push authorized keys
+      ansible.posix.authorized_key:
+        user: deploy
+        key: "{{ lookup('file', 'files/deploy_authorized_keys') }}"
+        exclusive: true
+        state: present
+```
+
+### Example: emergency mitigation playbook with approval
+
+```yaml
+# playbooks/emergency/disable-feature.yml
+- name: Disable risky feature globally
+  hosts: web
+  become: true
+  vars_prompt:
+    - name: confirm
+      prompt: "Type DISABLE to confirm disabling the feature in prod"
+      private: false
+  pre_tasks:
+    - name: Hard stop if not confirmed
+      ansible.builtin.fail:
+        msg: "Aborting: confirmation not provided"
+      when: confirm != "DISABLE"
+
+  tasks:
+    - name: Flip feature flag
+      ansible.builtin.lineinfile:
+        path: /etc/myapp/feature_flags.conf
+        regexp: "^risky_feature="
+        line: "risky_feature=false"
+      notify: reload app
+
+  handlers:
+    - name: reload app
+      ansible.builtin.service:
+        name: myapp
+        state: reloaded
+```
+
+### Example: scheduled compliance scan
+
+```yaml
+# playbooks/compliance/sshd-baseline.yml
+- name: SSHD baseline compliance check
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read sshd_config
+      ansible.builtin.slurp:
+        src: /etc/ssh/sshd_config
+      register: sshd_raw
+
+    - name: Decode content
+      ansible.builtin.set_fact:
+        sshd_content: "{{ sshd_raw.content | b64decode }}"
+
+    - name: Check PermitRootLogin
+      ansible.builtin.assert:
+        that:
+          - "'PermitRootLogin no' in sshd_content"
+        fail_msg: "PermitRootLogin must be 'no'"
+        success_msg: "PermitRootLogin compliant"
+```
+
+Schedule it from AWX with `--check` semantics to detect drift without changing anything.
+
 ## What good looks like
 
 - Engineers describe production changes by linking to a PR, not by listing manual steps.
