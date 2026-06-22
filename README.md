@@ -28,7 +28,10 @@ sre/
 │   ├── 07-data-services-reliability.md
 │   ├── 08-eks-docker-platform-ops.md
 │   ├── 09-migration-readiness-architecture-review.md
-│   └── 10-git-workflows-collaboration.md
+│   ├── 10-git-workflows-collaboration.md
+│   ├── 11-jenkins-at-scale.md
+│   ├── 12-cicd-platform-engineering.md
+│   └── 13-docker-deep-dive.md
 ├── cloud-operations/
 │   ├── aws-sre-core-topics.md
 │   └── aws-sre-operating-model.md
@@ -38,7 +41,8 @@ sre/
     ├── 02-runbooks-incident-response.md
     ├── 03-monitoring-observability.md
     ├── 04-on-call-guide.md
-    └── 05-deployment-reliability.md
+    ├── 05-deployment-reliability.md
+    └── 06-splunk-datadog-deep-dive.md
 ```
 
 ---
@@ -59,7 +63,10 @@ AWS-first SRE learning path split into focused, workflow-driven docs:
 8. **[Databases, Storage, and Reliability](AWS/07-data-services-reliability.md)**
 9. **[Kubernetes, EKS, Docker, and Platform Ops](AWS/08-eks-docker-platform-ops.md)**
 10. **[Migration Readiness and Architecture Review](AWS/09-migration-readiness-architecture-review.md)**
-11. **[Git Workflows and Collaboration](AWS/10-git-workflows-collaboration.md)**
+11. **[Git Workflows and Collaboration](AWS/10-git-workflows-collaboration.md)** — now includes branching strategies, branch protection, CODEOWNERS, signed commits, gitleaks/secret response
+12. **[Jenkins at Scale](AWS/11-jenkins-at-scale.md)** — controller/agent architecture, plugin governance, multi-tenant CI, container-based agents on Kubernetes
+13. **[CI/CD Platform Engineering](AWS/12-cicd-platform-engineering.md)** — pipeline enablement frameworks, paved roads, supply-chain security, capacity planning
+14. **[Docker Deep Dive](AWS/13-docker-deep-dive.md)** — image/container lifecycle, production Dockerfile authoring, container networking, runtime troubleshooting
 
 ### [Cloud Operations](cloud-operations/)
 
@@ -91,6 +98,7 @@ Start here to understand SRE fundamentals:
 3. **[Monitoring & Observability](basic/03-monitoring-observability.md)** — Metrics, logs, traces, alerting
 4. **[On-Call Guide](basic/04-on-call-guide.md)** — Rotations, handoffs, triage, burnout prevention
 5. **[Deployment & Reliability](basic/05-deployment-reliability.md)** — Canary, blue-green, feature flags, chaos tests
+6. **[Splunk + Datadog Deep Dive](basic/06-splunk-datadog-deep-dive.md)** — platform dashboards, SLO/SLA tracking, log analysis, multi-window burn-rate alerts, cost controls
 
 ---
 
@@ -149,6 +157,27 @@ Start here to understand SRE fundamentals:
 3. **Adapt templates** (checklists, postmortem format, runbook structure) to your context
 4. **Reference during incidents** — bookmark key pages
 5. **Share with your team** — use as onboarding material
+
+---
+
+## Platform SRE JD-to-doc mapping
+
+For Platform / Infra SRE roles (5+ years, Linux + Docker + K8s + Jenkins + CI/CD + Splunk/Datadog + AWS + networking + automation + Git), every JD requirement maps to existing docs below — no separate folder, just the right doc for each topic.
+
+| JD requirement | Document(s) |
+| --- | --- |
+| Linux admin, troubleshooting, perf tuning, OS hardening | [linux-infrastructure/01](linux-infrastructure/01-linux-systems-administration-at-scale.md), [02](linux-infrastructure/02-linux-performance-tuning.md) |
+| Docker — image/container lifecycle, Dockerfile, networking, runtime troubleshooting | [AWS/13 Docker deep dive](AWS/13-docker-deep-dive.md) (paired with [AWS/08 EKS+Docker](AWS/08-eks-docker-platform-ops.md)) |
+| Kubernetes — control plane, workloads, Helm, upgrades, scaling, backup/restore | [AWS/08 EKS+Docker](AWS/08-eks-docker-platform-ops.md) + companion [K8s repo](../K8s/) |
+| Jenkins — controller/agent, plugin governance, multi-tenant, k8s agents | [AWS/11 Jenkins at scale](AWS/11-jenkins-at-scale.md) |
+| CI/CD platform — pipeline frameworks, build/test/deploy, reliability, capacity | [AWS/12 CI/CD platform engineering](AWS/12-cicd-platform-engineering.md) + [AWS/05 release reliability](AWS/05-cicd-release-reliability.md) |
+| Observability — Splunk + Datadog dashboards, SLO/SLA, log analysis, alerting | [basic/06 Splunk+Datadog deep dive](basic/06-splunk-datadog-deep-dive.md) + [AWS/02](AWS/02-observability-monitoring.md) + [basic/03](basic/03-monitoring-observability.md) |
+| AWS — EC2, S3, IAM, VPC, baseline security, cost monitoring | [AWS/06 Security/IAM/KMS](AWS/06-security-iam-kms-secrets.md), [AWS/07 data services](AWS/07-data-services-reliability.md), [AWS/04 automation IaC](AWS/04-automation-iac.md) |
+| Networking — DNS, IP, routing, load balancing, connectivity troubleshooting | [linux-infrastructure/03 Network+Storage troubleshooting](linux-infrastructure/03-network-storage-troubleshooting.md) (with the "Platform networking deep dive" section) |
+| Automation — Shell, Python, similar | [AWS/04 Automation, IaC, and Runbooks](AWS/04-automation-iac.md) (with the "Shell + Python automation patterns" section) |
+| Git — branching strategies, repo governance | [AWS/10 Git workflows + governance](AWS/10-git-workflows-collaboration.md) (with the "Repo governance deep dive" section) |
+| Config management (Ansible) | [linux-infrastructure/04 Chef/Ansible](linux-infrastructure/04-config-management-chef-ansible.md) + [linux-infrastructure/ansible/](linux-infrastructure/ansible/) learning path |
+| Incident response / on-call / SLOs | [basic/02](basic/02-runbooks-incident-response.md), [basic/04](basic/04-on-call-guide.md), [AWS/01 SLOs](AWS/01-slo-sli-error-budgets.md), [AWS/03 Incident response](AWS/03-incident-response-oncall.md) |
 
 ---
 
