@@ -179,6 +179,20 @@ For Platform / Infra SRE roles (5+ years, Linux + Docker + K8s + Jenkins + CI/CD
 | Config management (Ansible) | [linux-infrastructure/04 Chef/Ansible](linux-infrastructure/04-config-management-chef-ansible.md) + [linux-infrastructure/ansible/](linux-infrastructure/ansible/) learning path |
 | Incident response / on-call / SLOs | [basic/02](basic/02-runbooks-incident-response.md), [basic/04](basic/04-on-call-guide.md), [AWS/01 SLOs](AWS/01-slo-sli-error-budgets.md), [AWS/03 Incident response](AWS/03-incident-response-oncall.md) |
 
+### Additional Platform SRE JD coverage (Run Engineering, RCA, ORR, Toil, Observability quality)
+
+| JD requirement | Document(s) |
+| --- | --- |
+| Operate platform services (Terraform Registry, tracing infra, Quality & Observability) as tier-1 | [AWS/12 §Platform Run Engineering](AWS/12-cicd-platform-engineering.md), [AWS/04 §Terraform Registry & IaC governance](AWS/04-automation-iac.md) |
+| Patching, upgrades, vulnerability remediation with minimal human intervention | [AWS/04 §Self-healing patching & vulnerability remediation](AWS/04-automation-iac.md) |
+| Lead incident response, deep RCA, long-term corrective actions | [basic/02 §Deep root-cause analysis & long-term corrective actions](basic/02-runbooks-incident-response.md) |
+| Reduce operational toil via workflow industrialization | [basic/01 §Toil reduction & workflow industrialization](basic/01-sre-fundamentals.md) |
+| CI/CD platform + reusable workflows for 300+ developers, DX & DORA metrics | [AWS/12 §Platform Run Engineering / DX / DORA](AWS/12-cicd-platform-engineering.md) |
+| Base Docker image lifecycle — hardening, build pipelines, versioning, distribution | [AWS/13 §Base image lifecycle](AWS/13-docker-deep-dive.md) |
+| Tracing pipelines, anomaly detection, signal-to-noise & alert quality | [basic/06 §Tracing pipelines, anomaly detection & signal quality](basic/06-splunk-datadog-deep-dive.md) |
+| Operational Readiness Reviews, system demos, platform enablement & adoption | [basic/05 §Operational Readiness Review (ORR) & platform adoption](basic/05-deployment-reliability.md) |
+| Partner with engineering teams on troubleshooting & enablement | [basic/05 §ORR](basic/05-deployment-reliability.md), [AWS/12 §Platform Run Engineering](AWS/12-cicd-platform-engineering.md), [basic/02 §RCA](basic/02-runbooks-incident-response.md) |
+
 ---
 
 ## Source & Attribution

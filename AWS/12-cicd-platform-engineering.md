@@ -433,3 +433,175 @@ What the template repo provides out of the box:
 - Argo Rollouts — [argo-rollouts.readthedocs.io](https://argo-rollouts.readthedocs.io/)
 - GitHub Actions reusable workflows — [docs.github.com/actions/using-workflows/reusing-workflows](https://docs.github.com/en/actions/using-workflows/reusing-workflows)
 - Companion: [11-jenkins-at-scale.md](11-jenkins-at-scale.md), [10-git-workflows-collaboration.md](10-git-workflows-collaboration.md)
+
+---
+
+## Platform Run Engineering — operating shared services at scale
+
+> JD lines covered: *Operate and maintain key platform services (Terraform Registry, Tracing infrastructure, Quality & Observability resources, docs & chat-support systems). Operate the cloud platform's CI/CD pipelines and reusable workflows used by 300+ developers.*
+
+### 1. What "Run Engineering" actually means
+
+A platform team has **two products**: the tools developers consume, and the **operation of those tools** as 24×7 production services. "Run Engineering" is the discipline of running shared infra like an SRE-owned service.
+
+```mermaid
+flowchart TB
+    subgraph Tier1[Tier-1 platform services]
+      CI[CI/CD platform]
+      REG[Terraform Registry]
+      TRACE[Tracing backend]
+      OBS[Quality + Observability stack]
+      DOCS[Docs + chat-support bot]
+      ART[Artifact / image registry]
+    end
+    DEV[300+ developers] --> CI & REG & TRACE & OBS & DOCS & ART
+    Tier1 --> SLO[Per-service SLOs + error budgets]
+    Tier1 --> ONCALL[Platform on-call rotation]
+    Tier1 --> RUNBOOK[Runbooks + synthetic monitors]
+    SLO & ONCALL & RUNBOOK --> POST[Postmortems -> roadmap items]
+```
+
+Every service in the box on the left gets the same treatment:
+
+| Concern | Implementation |
+| --- | --- |
+| Ownership | Single owning team listed in service catalog |
+| SLOs | Availability + latency + correctness, error budget tracked in Datadog |
+| Runbooks | Linked from every alert; quarterly drills |
+| Capacity | Quarterly review with growth model |
+| Backup / DR | Tested restore at least quarterly |
+| Security | Authn = OIDC/SSO; authz = least-privilege; audit log to Splunk |
+| Lifecycle | Version pinned, upgrades scheduled, deprecations announced > 90 days ahead |
+| Cost | Tagged with `service` + `team`; reviewed monthly |
+
+### 2. SLO templates for common platform services
+
+```yaml
+# Terraform Registry
+slo: { name: tf-registry-init, target: 99.95, window: 30d }
+sli: 'sum:trace.http.request{service:tf-registry,resource:terraform.init,!http.status_code:5*}.as_count() / sum:trace.http.request{service:tf-registry,resource:terraform.init}.as_count()'
+
+# Tracing backend
+slo: { name: tracing-ingest, target: 99.9, window: 30d }
+sli: '1 - (sum:otel.collector.exporter.send_failed_spans{*}.as_count() / sum:otel.collector.exporter.sent_spans{*}.as_count())'
+
+# CI control plane
+slo: { name: ci-queue-latency, target: 99.0, window: 30d }   # p95 < 60s
+sli: 'p95:ci.queue.wait_seconds{*}'
+
+# Docs / chat bot
+slo: { name: docs-availability, target: 99.9, window: 30d }
+sli: '1 - (sum:synthetic.http.error{name:docs-health}.as_count() / sum:synthetic.http.check{name:docs-health}.as_count())'
+```
+
+### 3. Synthetic monitoring — detect platform degradation before users do
+
+```yaml
+# Datadog synthetic test
+name: ci-paved-road-smoke
+type: api
+subtype: multi
+request_definition: |
+  1. POST /api/v4/projects/$id/pipeline    # trigger no-op pipeline
+  2. GET  /api/v4/projects/$id/pipelines/$pid (poll until status=success, timeout 5m)
+assertions:
+  - { type: responseTime, operator: lessThan, target: 300000 }
+  - { type: body, operator: contains, target: '"status":"success"' }
+locations: [aws:us-east-1, aws:eu-west-1]
+options: { tick_every: 300, monitor_options: { renotify_interval: 0 } }
+```
+
+Same pattern for: `terraform init` against the registry, a span emitted to the tracing backend, a docs search query.
+
+### 4. Scaling reusable workflows to 300+ developers
+
+At 300 developers the platform contract becomes a versioned API. Treat it that way:
+
+```mermaid
+flowchart TD
+    A[platform-workflows repo] --> B[Versioned tags v1, v2, v3]
+    B --> C[Consumers pin to @v1 or @v1.6.0]
+    C --> D[Deprecation calendar published 90+ days out]
+    D --> E[Linter scans consumers; bumps PRs auto-opened]
+    E --> F[Telemetry: usage by version per repo]
+    F --> G[Sunset old versions after grace + zero usage]
+```
+
+Guardrails:
+
+- **`uses: org/platform-workflows/.github/workflows/x.yml@v1`** — never `@main`.
+- **Compatibility shim** when bumping minors so consumers move at their pace.
+- **`workflow_dispatch` smoke pipeline** that proves a fresh consumer onboards end-to-end.
+- **Per-tenant queues** so a heavy team can't starve everyone else (Jenkins folder quotas, GitHub Actions concurrency groups).
+- **Service catalog** lists every service with its owner, on-call, runbook, SLO.
+
+### 5. Developer Experience (DX) — the platform's user metric
+
+DX is what makes 300 developers love or hate the platform. Track it like a product:
+
+| DX signal | How |
+| --- | --- |
+| Time to first successful pipeline | Sample new repos; target < 1 day |
+| Mean PR cycle time | DORA: open → merge → prod |
+| Time to provision an environment | Self-service portal timing |
+| Quarterly NPS survey | 1-question score + free-text |
+| Support ticket volume + resolution time | Categorize by platform area |
+| Top 10 "why is my build failing" patterns | Drives docs + paved-road fixes |
+
+### 6. DORA metrics for the platform itself
+
+```mermaid
+flowchart LR
+    A[Commits + PRs] --> B[Deployment frequency]
+    A --> C[Lead time for changes]
+    D[Incidents] --> E[Change failure rate]
+    D --> F[MTTR]
+    B & C & E & F --> G[Weekly platform scorecard]
+    G --> H[Roadmap priorities]
+```
+
+Query Datadog (or build from CI events + incident records):
+```
+# Deployment frequency, per service, last 30d
+count_not_null(events('source:deploy env:prod').rollup('count', 86400))
+
+# Lead time (PR open -> deploy timestamp), p50/p95
+p50:platform.pr.lead_time_seconds{*}.rollup(avg, 86400)
+```
+
+### 7. Reducing operational toil systematically
+
+```mermaid
+flowchart TD
+    A[Track every interrupt: ticket, page, Slack ask] --> B[Bucket by category each week]
+    B --> C{Top bucket > 20% of time?}
+    C -- yes --> D[Open engineering ticket: automate or remove]
+    C -- no --> E[Continue measuring]
+    D --> F[Ship fix; close loop with users]
+    F --> A
+```
+
+Rule of thumb (from the Google SRE Book): keep **toil under 50%** of platform-SRE time. The remaining time funds the roadmap. Publish the ratio monthly.
+
+### 8. What good looks like (Run Engineering)
+
+- Every platform service has an **owner, runbook, SLO, synthetic monitor, on-call** in the catalog.
+- Engineers can find any service's status, owner, and last incident in **< 30 s**.
+- Reusable workflows are **versioned APIs** with deprecation calendars.
+- **DORA + DX scorecards** are published weekly and drive the roadmap.
+- **Toil ratio** is measured and below 50%.
+
+### 9. Anti-patterns (Run Engineering)
+
+- Tier-1 service with no SLO, no on-call, no runbook — "if it breaks, somebody Slacks me".
+- Consumers stuck on `@main` of reusable workflows; one bad PR breaks 300 builds.
+- Roadmap dictated by loudest customer instead of measured pain (DX surveys, toil categorization).
+- Platform team measured on raw uptime only; nobody tracks lead time or DX.
+
+### 10. References (Run Engineering + DX)
+
+- Google SRE Workbook — *Eliminating Toil* — [sre.google/workbook/eliminating-toil](https://sre.google/workbook/eliminating-toil/)
+- DORA / Accelerate — [dora.dev](https://dora.dev/)
+- *Team Topologies* (Skelton & Pais) — [teamtopologies.com](https://teamtopologies.com/)
+- Backstage Service Catalog — [backstage.io/docs/features/software-catalog](https://backstage.io/docs/features/software-catalog/)
+- Datadog Service Catalog — [docs.datadoghq.com/tracing/service_catalog](https://docs.datadoghq.com/tracing/service_catalog/)

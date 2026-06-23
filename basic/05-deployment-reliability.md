@@ -494,3 +494,140 @@ Safe, reliable deployments require:
 7. **Responsibility**: Team (not just on-call) owns deployment success
 
 Organizations that master deployment & reliability practices ship faster, more confidently, and with fewer production incidents.
+
+---
+
+## Operational Readiness Review (ORR) & platform adoption
+
+> JD lines covered: *Participate in system demos, validation sessions, and operational readiness reviews. Act as a partner for Cloud engineering teams in troubleshooting and platform enablement.*
+
+### 1. What an ORR is
+
+An **Operational Readiness Review** is a structured checkpoint between "engineering says it's done" and "prod traffic goes through it". Done right, it surfaces operability gaps **before** they become 3 AM pages.
+
+```mermaid
+flowchart LR
+    A[Service planned] --> B[Design review: SLOs, dependencies, capacity model]
+    B --> C[Build with platform paved-road defaults]
+    C --> D[ORR checklist completed + signed by SRE]
+    D --> E[Operational handover: runbooks, dashboards, on-call]
+    E --> F[Soak in canary + game day]
+    F --> G[Go-live to prod traffic]
+    G --> H[30-day stabilization review]
+    H --> I[Quarterly re-review against latest standards]
+```
+
+### 2. The ORR checklist (concrete)
+
+```markdown
+## Service: <name>     Owner team: <team>     Tier: <1/2/3>     Date:
+
+### Identity & metadata
+- [ ] Listed in service catalog with owner, on-call, slack channel
+- [ ] CODEOWNERS set; branch protection on; signed commits required
+
+### SLOs & error budget
+- [ ] Tier-appropriate SLOs defined (availability + latency + correctness)
+- [ ] SLOs visible in Datadog; multi-window burn-rate alerts wired
+
+### Observability
+- [ ] Structured logs to Splunk with consistent tags (service, env, team, version)
+- [ ] Traces emitted; sampling decided; service appears in service map
+- [ ] Dashboards: RED + USE + SLO; linked from runbook
+- [ ] Synthetic monitor in 2 regions
+
+### Reliability
+- [ ] HA: replicas ≥ 2, PDB set, anti-affinity / topology spread
+- [ ] Resource requests + limits set; load-tested at 2x peak
+- [ ] Graceful shutdown (SIGTERM handler + preStop drain)
+- [ ] Dependencies enumerated; circuit-breakers / timeouts everywhere
+
+### Security
+- [ ] Image signed (cosign), scanned (trivy HIGH/CRITICAL = 0)
+- [ ] Non-root, read-only FS, no-new-privileges, dropped caps
+- [ ] Secrets from KMS / Vault / SSM (never in env or git)
+- [ ] Least-privilege IAM/RBAC; threat model recorded
+
+### Deployment
+- [ ] Pipeline uses paved-road template; rollouts atomic; rollback tested
+- [ ] Canary or blue-green strategy chosen + documented
+- [ ] Feature flags for risky paths
+
+### Operability
+- [ ] Runbook covering top 5 failure modes
+- [ ] On-call rotation and escalation defined
+- [ ] Backup/restore procedure documented; restored to sandbox at least once
+- [ ] Capacity model: expected RPS, growth, scaling levers
+- [ ] Cost: tagged + reviewed; cost-per-request known
+
+### Sign-off
+- [ ] SRE reviewer:           ______________   date: ______
+- [ ] Service owner:          ______________   date: ______
+- [ ] Open action items + due dates linked
+```
+
+A service can go-live with **open items**, but each item has an owner, due date, and risk acceptance.
+
+### 3. ORR workflow as a partnership
+
+```mermaid
+flowchart TD
+    A[Team announces target launch] --> B[Pre-ORR working session: SRE + team walk the checklist]
+    B --> C[Team closes the easy gaps]
+    C --> D[Formal ORR meeting: 60 min, signed off in writing]
+    D --> E{All Tier-1 items green?}
+    E -- yes --> F[Sign-off; schedule game day]
+    E -- no  --> G[List blockers + owners; re-meet in 1–2 weeks]
+    F --> H[Go-live]
+    H --> I[30-day stabilization review with the team]
+    I --> J[Lessons feed back into the checklist for the next service]
+```
+
+ORR is **not** a gate the SRE team applies against the engineering team. It's a **shared artifact** both teams sign so neither is surprised later.
+
+### 4. System demos & validation sessions
+
+For every new platform feature or new service:
+
+- **Demo** (30 min): show the user-visible flow end-to-end, in a prod-like environment.
+- **Validation session** (30 min): the platform team and the consuming team try real scenarios together — onboarding a repo, triggering a pipeline, querying a dashboard, simulating a failure.
+- **Capture friction** as ORR or paved-road backlog items, not as "this team is bad at the platform".
+
+### 5. Platform adoption — measure it, drive it
+
+```mermaid
+flowchart LR
+    A[Adoption metric per service] --> B[On paved-road CI? Y/N]
+    A --> C[On supported base image? Y/N]
+    A --> D[Has SLO + dashboards? Y/N]
+    A --> E[ORR completed? Y/N]
+    A --> F[On supported Helm chart version? Y/N]
+    B & C & D & E & F --> G[Adoption scorecard per team]
+    G --> H[Weekly review with platform PM]
+    H --> I[Targeted enablement for low-adoption teams]
+```
+
+Pair high-friction teams with a **platform engineer for a sprint** ; ship the gap closure as a paved-road improvement so the next team gets it for free.
+
+### 6. What good looks like (ORR + adoption)
+
+- **No tier-1 service** goes live without a signed ORR.
+- ORR checklist **evolves** — each post-incident adds a question.
+- Demos + validation sessions are routine, not exceptional.
+- Adoption is a published metric per team; gaps drive a backlog, not a blame conversation.
+- 30-day stabilization review catches the "forgotten owner" pattern.
+
+### 7. Anti-patterns (ORR + adoption)
+
+- ORR as a one-time launch ritual; never re-reviewed against new standards.
+- ORR done by the SRE team **for** the service team — nothing learned, nothing owned.
+- Endless blocking on Tier-3 nice-to-haves; the launch slips and trust erodes.
+- Adoption measured by "# of teams onboarded" instead of "# of teams who would use it again".
+- No 30-day stabilization review — first incident is the review.
+
+### 8. References (ORR + adoption)
+
+- Google SRE Book — *Launch Coordination Engineering* — [sre.google/sre-book/reliable-product-launches](https://sre.google/sre-book/reliable-product-launches/)
+- AWS Operational Readiness Reviews — [docs.aws.amazon.com/wellarchitected/latest/operational-readiness-reviews/wa-operational-readiness-reviews.html](https://docs.aws.amazon.com/wellarchitected/latest/operational-readiness-reviews/wa-operational-readiness-reviews.html)
+- Microsoft — *Operational Excellence Pillar* — [learn.microsoft.com/azure/well-architected/operational-excellence](https://learn.microsoft.com/azure/well-architected/operational-excellence/)
+- *Team Topologies* — the "X-as-a-Service" interaction mode — [teamtopologies.com](https://teamtopologies.com/)

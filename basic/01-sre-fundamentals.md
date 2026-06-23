@@ -257,3 +257,84 @@ What slowed us down? What info was missing?
 SRE fundamentals provide a framework for building and operating reliable systems at scale. By defining clear SLOs, embracing error budgets, automating toil, measuring reliability, and fostering a blameless culture, organizations achieve both velocity and stability.
 
 The remaining documents in this knowledge base detail how to operationalize these principles.
+
+---
+
+## Toil reduction & workflow industrialization
+
+> JD line covered: *Reduce operational toil through automation, workflow industrialization, and proactive reliability engineering.*
+
+### 1. What counts as toil (the precise definition)
+
+Toil = work that is **manual, repetitive, automatable, tactical, devoid of enduring value**, and **scales linearly** with service growth. Things that look like work but **aren't** toil: design, mentoring, postmortems, capacity planning, building automation.
+
+### 2. The industrialization ladder
+
+A platform-SRE moves every operational task **up the ladder** over time. The goal is not zero manual work; it's continually pushing each task one rung higher.
+
+```mermaid
+flowchart LR
+    L0[L0: Manual on a host] --> L1[L1: Documented runbook]
+    L1 --> L2[L2: Script in Git, run by human]
+    L2 --> L3[L3: Self-service: chatbot / portal triggers script]
+    L3 --> L4[L4: Scheduled / event-driven automation]
+    L4 --> L5[L5: Self-healing: detector + remediator closes loop]
+    L5 --> L6[L6: Designed-out: root cause eliminated, no runbook needed]
+```
+
+| Level | Example: "disk full on a build agent" |
+| --- | --- |
+| L0 | SSH in, `rm -rf /tmp/*`, hope |
+| L1 | Runbook in wiki: which paths to clean |
+| L2 | `cleanup_agent.sh` in Git, on-call runs it |
+| L3 | Slack: `/cleanup-agent agent-7` calls the script with audit log |
+| L4 | Cron / event: when agent disk > 80%, script auto-runs |
+| L5 | Detector + remediator in a controller; outcome reported to Datadog |
+| L6 | Agents are ephemeral pods; disk pressure no longer possible |
+
+### 3. Measure toil — you can't reduce what you don't count
+
+```mermaid
+flowchart TD
+    A[Every interrupt logged: ticket, page, Slack ask] --> B[Tagged: category, time spent, automatable?]
+    B --> C[Weekly platform standup: top 3 buckets]
+    C --> D{Bucket > 5% of team-week?}
+    D -- yes --> E[Open engineering ticket: automate or eliminate]
+    D -- no  --> F[Continue tracking]
+    E --> G[Ship fix; close interrupt loop]
+    G --> A
+```
+
+A lightweight time log works (Google sheet, Backstage tech-radar, Datadog dashboard). Track:
+
+- **Toil ratio** = toil hours / total engineering hours. Target **< 50%**; alert above 60%.
+- **Top 5 sources of toil** per quarter — they become the automation backlog.
+- **Mean time to industrialize** — from "identified as toil" to L4+.
+
+### 4. Proactive reliability engineering
+
+The other half of the lever: instead of waiting for incidents, **manufacture them under control** and use the results to harden the system.
+
+| Practice | What it looks like |
+| --- | --- |
+| **Game days** | Quarterly cross-team incident simulation against a prod-like environment |
+| **Chaos engineering** | Scheduled fault injection (Litmus / Gremlin / AWS FIS) within an error-budget |
+| **Failure mode reviews** | Pre-launch "what breaks" workshop covering top-10 failure modes |
+| **Pre-mortems** | Imagine the launch failed — list reasons, mitigate the top 3 |
+| **Service maturity model** | Tier-1/2/3 with checklist (SLO, runbook, ORR done, backups tested) |
+| **Risk register** | Tracked known weaknesses with owner + due date |
+
+### 5. Anti-patterns (toil)
+
+- "We don't have time to automate because we're firefighting" — the firefighting **is** the work to automate.
+- Industrializing a task by writing a 1 000-line Bash with no tests — you traded toil for tech debt.
+- Hidden toil: senior engineers carry it silently and burn out.
+- Automating a bad workflow instead of redesigning it — stay alert for L6 opportunities.
+
+### 6. References
+
+- Google SRE Workbook — *Eliminating Toil* — [sre.google/workbook/eliminating-toil](https://sre.google/workbook/eliminating-toil/)
+- Google SRE Book — Chapter 5 *Eliminating Toil* — [sre.google/sre-book/eliminating-toil](https://sre.google/sre-book/eliminating-toil/)
+- *Chaos Engineering* (Rosenthal & Jones, O'Reilly)
+- AWS Fault Injection Service — [docs.aws.amazon.com/fis](https://docs.aws.amazon.com/fis/latest/userguide/what-is.html)
+- Litmus Chaos — [litmuschaos.io](https://litmuschaos.io/)

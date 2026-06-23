@@ -394,3 +394,112 @@ Effective incident response combines:
 5. **Continuous improvement** (postmortems, action items, runbook updates)
 
 The goal: Minimize MTTR and use incidents as opportunities to improve system design.
+
+---
+
+## Deep root-cause analysis & long-term corrective actions
+
+> JD line covered: *Lead incident response, perform deep root-cause analysis, and implement long-term corrective actions.*
+
+Mitigation stops the bleeding. RCA prevents the next time. They are different jobs and often done by different people.
+
+### 1. The post-incident flow
+
+```mermaid
+flowchart LR
+    A[Incident resolved] --> B[Within 24h: timeline + raw data captured]
+    B --> C[Within 72h: blameless postmortem published]
+    C --> D[RCA workshop: 5 Whys / Ishikawa / causal chain]
+    D --> E[Action items: each tagged Mitigation / Containment / Corrective / Preventive]
+    E --> F[Owners + due dates in a tracker; visible on the team page]
+    F --> G[Monthly review: % closed, % overdue]
+    G --> H[Drift back into work? -> Escalate]
+```
+
+### 2. RCA techniques — pick the right one
+
+| Technique | Best for |
+| --- | --- |
+| **5 Whys** | Linear cause chains; quick wins; teach juniors |
+| **Ishikawa / fishbone** | Multi-factor incidents (people, process, tech, data) |
+| **Causal chain / event timeline** | Distributed systems with many interacting components |
+| **FMEA** (failure-mode + effects) | Pre-launch + post-incident hardening |
+| **STAMP / CAST** | Complex socio-technical systems, regulatory environments |
+
+The **rule of three**: keep asking *why* until you reach at least three layers that are non-trivial. If you stop at "because the disk filled" you haven't done RCA — you've named a symptom.
+
+### 3. Worked example — 5 Whys done right
+
+> **Incident:** payments-api returned 5xx for 14 minutes.
+>
+> 1. **Why?** Pods OOM-killed.
+> 2. **Why?** Memory limit was 256 Mi, working set was 380 Mi.
+> 3. **Why?** A new dependency holds requests in memory until a batch flush.
+> 4. **Why?** No load test of the new dep at expected RPS before merge.
+> 5. **Why?** The CI paved-road template has no perf gate on dependency upgrades.
+>
+> **Action items:**
+> - **Mitigation (done):** raise limit to 768 Mi.
+> - **Containment:** alert on memory headroom < 30%.
+> - **Corrective:** add perf-gate stage to the paved-road template for any `requirements.txt` change.
+> - **Preventive:** quarterly load-test drill for every tier-1 service.
+
+Notice each *why* moves up a layer: pod → limit → dependency → process → platform.
+
+### 4. Action item taxonomy
+
+```mermaid
+flowchart LR
+    INC[Incident] --> M[Mitigation: stop the bleeding NOW]
+    INC --> C[Containment: prevent recurrence this week]
+    INC --> COR[Corrective: fix the proximate cause]
+    INC --> PREV[Preventive: remove the class of failure]
+    INC --> DET[Detective: shorten time to detect next time]
+```
+
+Good postmortems include **at least one preventive or detective item**, not only corrective. Otherwise you're patching the leak, not redesigning the boat.
+
+### 5. Postmortem document — minimum required sections
+
+```markdown
+# Postmortem: payments-api Sev1, 2026-06-12
+## Summary       (3 sentences: what, when, impact)
+## Impact        (users, requests, dollars, SLO burn)
+## Timeline      (UTC, with links to dashboards/traces/PRs)
+## Detection     (how + how long)
+## Response      (who paged, who joined, who decided)
+## Root cause(s) (chain, not single line)
+## Lessons       (what surprised us)
+## Action items  (Owner | Due | Type: Mitigation/Containment/Corrective/Preventive/Detective | Ticket)
+## What went well
+## What went badly
+## Where we got lucky
+```
+
+The last three sections are **non-negotiable**; they prevent narrative bias.
+
+### 6. Closing the loop on corrective actions
+
+The most common postmortem failure is **action items that never ship**. Treat them as platform debt:
+
+- **Tracker board** with all open action items across incidents, visible to the team.
+- **SLOs** on action items themselves: close 80% within 30 days; nothing > 90 days without escalation.
+- **Block error-budget consumption** at re-entry: if the team has open Sev1 action items > 90 days, freeze feature work until closed.
+- **Re-incident scoring**: if a similar incident recurs, weight the new postmortem as a process failure, not just a tech failure.
+
+### 7. Anti-patterns (RCA)
+
+- "Human error" as a root cause. (Why was the system designed so a human error caused a Sev1?)
+- Single-line root cause. (Real systems fail by chain.)
+- Action items with no owner or due date — they vanish.
+- Action items that are all "add an alert". Alerts don't prevent incidents; design does.
+- Skipping the "where we got lucky" section.
+- Reopening the same wiki page each quarter because the fix never shipped.
+
+### 8. References (RCA)
+
+- Google SRE Book — *Postmortem Culture* — [sre.google/sre-book/postmortem-culture](https://sre.google/sre-book/postmortem-culture/)
+- Etsy *Debriefing Facilitation Guide* — [extfiles.etsy.com/DebriefingFacilitationGuide.pdf](https://extfiles.etsy.com/DebriefingFacilitationGuide.pdf)
+- *The Field Guide to Understanding 'Human Error'* — Sidney Dekker
+- NTSB / FAA accident investigation methodology (public reports)
+- Learning from Incidents — [learningfromincidents.io](https://www.learningfromincidents.io/)

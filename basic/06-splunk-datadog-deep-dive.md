@@ -473,3 +473,170 @@ curl -fsSL https://api.datadoghq.com/api/v1/dashboard \
 - OpenTelemetry — [opentelemetry.io](https://opentelemetry.io/)
 - Splunk Common Information Model — [docs.splunk.com/Documentation/CIM](https://docs.splunk.com/Documentation/CIM/latest/User/Overview)
 - Datadog Terraform provider — [registry.terraform.io/providers/DataDog/datadog](https://registry.terraform.io/providers/DataDog/datadog/latest/docs)
+
+---
+
+## Tracing pipelines, anomaly detection & signal quality
+
+> JD lines covered: *Maintain and enhance the cloud platform's observability stack across traces and dashboards. Build automation for alerting, anomaly detection, and platform health insights, improving signal quality and reducing noise.*
+
+### 1. Tracing as a tier-1 platform service
+
+A centralized tracing backend is a paved road for **every** service team — but it's only useful if traces are correctly tagged, sampled, and reach the backend.
+
+```mermaid
+flowchart LR
+    APP[Service emits OpenTelemetry spans] --> SDK[OTel SDK<br/>auto + manual instrumentation]
+    SDK -- OTLP gRPC --> AGENT[Node-local OTel Collector agent]
+    AGENT --> GW[Regional OTel Collector gateway<br/>sampling + scrub + enrich]
+    GW --> BE[Tracing backend<br/>Datadog APM / Tempo / Jaeger]
+    BE --> UI[Service map + flame graphs + RUM]
+    GW --> ARCHIVE[Long-term archive: S3 + Athena / BigQuery]
+```
+
+Why a **gateway** and not direct-to-backend:
+- Apply **tail-based sampling** (keep errors + slow traces, drop healthy ones).
+- Inject standard attributes (`env`, `team`, `version`, `region`).
+- Redact PII / secrets before egress.
+- Buffer during backend outages.
+- One config object to change vendor or routes.
+
+### 2. Sample OTel Collector gateway config
+
+```yaml
+receivers:
+  otlp:
+    protocols: { grpc: { endpoint: 0.0.0.0:4317 }, http: { endpoint: 0.0.0.0:4318 } }
+
+processors:
+  batch: { send_batch_size: 8192, timeout: 5s }
+  memory_limiter: { check_interval: 1s, limit_mib: 1024, spike_limit_mib: 256 }
+  attributes/enrich:
+    actions:
+      - { key: deployment.region, value: ${env:REGION}, action: insert }
+      - { key: telemetry.platform, value: paved-road, action: insert }
+  redaction:
+    allow_all_keys: true
+    blocked_values: ["(?i)password", "(?i)secret", "AKIA[0-9A-Z]{16}"]
+  tail_sampling:
+    decision_wait: 10s
+    policies:
+      - { name: errors,     type: status_code, status_code: { status_codes: [ERROR] } }
+      - { name: slow,       type: latency,     latency: { threshold_ms: 750 } }
+      - { name: rate_5pct,  type: probabilistic, probabilistic: { sampling_percentage: 5 } }
+
+exporters:
+  datadog:    { api: { key: ${env:DD_API_KEY}, site: datadoghq.com } }
+  otlp/archive: { endpoint: archive-collector:4317, tls: { insecure: false } }
+
+service:
+  pipelines:
+    traces:
+      receivers:  [otlp]
+      processors: [memory_limiter, attributes/enrich, redaction, tail_sampling, batch]
+      exporters:  [datadog, otlp/archive]
+```
+
+### 3. SLOs for the tracing pipeline itself
+
+| Indicator | Target |
+| --- | --- |
+| Span ingest success | > 99.9% |
+| Drop rate due to backpressure | < 0.1% |
+| End-to-end span latency (emit → visible in UI) | < 60 s p95 |
+| Trace coverage (services on paved-road OTel) | > 95% |
+| % traces with all required tags (`service`, `env`, `version`) | > 99% |
+
+If the tracing platform is down, every service's debugging capability is down. Page on it.
+
+### 4. Signal quality — the war against noise
+
+```mermaid
+flowchart TD
+    A[Every monitor + alert] --> B[Tagged with owner, runbook, severity, slo]
+    B --> C[Monthly review of firing frequency]
+    C --> D{Pages > 4/week with no action?}
+    D -- yes --> E[Kill or tune the alert]
+    D -- no  --> F[Keep]
+    E --> G[Replace with SLO burn-rate or composite condition]
+    G --> H[Track 'pages prevented' as a metric]
+```
+
+Signal-quality KPIs to publish weekly:
+
+| Metric | What it tells you |
+| --- | --- |
+| **Pages per on-call shift** | Crew sanity — target < 2 |
+| **Actionable page %** | Pages that required a non-trivial action — target > 80% |
+| **Mean time to acknowledge (MTTA)** | Alert plumbing health |
+| **Mean time to resolution (MTTR)** | Pipeline + runbook health |
+| **Alert flap rate** | Alerts firing > 5x/day — candidates for kill |
+| **Monitors without runbook link** | Process compliance |
+
+Datadog query to find flappy monitors:
+```
+sum:datadog.monitors.notifications{*} by {monitor_name}.rollup(sum, 604800)
+```
+Anything > 20 in a week with no postmortem is noise. Fix or delete.
+
+### 5. Anomaly detection — use it surgically, not everywhere
+
+Anomaly detection (Datadog `anomalies()`, Splunk `predict`, Prometheus + holt-winters) is powerful **and** prone to false positives. Use it when:
+
+- The metric has **strong seasonality** you can't easily threshold (DAU, request rate per region).
+- You want **trend drift detection** rather than instant alerts (cost, p99 latency drift over a week).
+- You're catching the **unknown unknowns** — supplement, never replace, SLO burn-rate alerts.
+
+```
+# Datadog anomaly query: alert when p95 deviates 3 sigma over 1h, considering weekly seasonality
+avg(last_1h):anomalies(p95:trace.http.request{service:payments-api,env:prod}.rollup(avg, 60), 'agile', 3, direction='above', alert_window='last_15m', interval=60, count_default_zero='true', seasonality='weekly') >= 1
+```
+
+Wrap anomaly alerts with **composite conditions** to cut noise:
+- *Anomaly AND error-budget burn > 1x* → page.
+- *Anomaly AND traffic > 1k req/min* → ticket.
+- *Anomaly alone* → dashboard only.
+
+### 6. Platform health insights — automation, not dashboards
+
+```mermaid
+flowchart LR
+    DD[Datadog API] --> JOB[Nightly job: extract SLO + DORA + cost per service]
+    SP[Splunk API] --> JOB
+    INC[Incident system] --> JOB
+    GIT[Git platform API] --> JOB
+    JOB --> WAREHOUSE[(Scorecard warehouse:<br/>BigQuery / Snowflake / Athena)]
+    WAREHOUSE --> SCORE[Weekly platform scorecard]
+    WAREHOUSE --> AUTO[Automated insights: services drifting from SLO]
+    AUTO --> BOT[Slack bot pings owner with a paved-road suggestion]
+```
+
+A platform-health bot should answer questions like: *"Which services blew through their error budget last week?"*, *"Which tier-1 services have no signed ORR?"*, *"Top 10 monitors firing without runbook links?"* — published automatically, not pulled from a dashboard nobody opens.
+
+### 7. What good looks like (tracing + signal quality)
+
+- Tracing is a **paved road**: drop in the OTel SDK and you appear in the service map.
+- The **collector gateway** owns sampling, scrubbing, and enrichment — service teams don't.
+- **Tracing pipeline has its own SLO + on-call**; outage pages the platform team.
+- **Alert review is monthly**; noise is killed mercilessly.
+- **Anomaly detection** is composed with SLO burn for paging, used solo only for dashboards.
+- **Platform health insights** are pushed by a bot, not pulled by humans.
+
+### 8. Anti-patterns (tracing + signal quality)
+
+- Every service ships its own trace agent config; nobody enforces sampling or tags.
+- 100% sampling at scale — backend costs explode, useful traces drowned in noise.
+- "Alert on everything" — on-call fatigue, then real pages get missed.
+- Anomaly alerts paging at 3 AM with no SLO context.
+- Dashboards that nobody opens replace a daily scorecard nobody can ignore.
+- Tracing platform with no SLO — silently degrading, no one notices until a real incident.
+
+### 9. References (tracing + signal quality)
+
+- OpenTelemetry — [opentelemetry.io](https://opentelemetry.io/)
+- OTel Collector — [opentelemetry.io/docs/collector](https://opentelemetry.io/docs/collector/)
+- Tail-based sampling — [opentelemetry.io/docs/concepts/sampling](https://opentelemetry.io/docs/concepts/sampling/)
+- Google SRE Workbook — *Alerting on SLOs* — [sre.google/workbook/alerting-on-slos](https://sre.google/workbook/alerting-on-slos/)
+- Datadog anomaly detection — [docs.datadoghq.com/monitors/types/anomaly](https://docs.datadoghq.com/monitors/types/anomaly/)
+- Splunk `predict` + `anomalydetection` — [docs.splunk.com/Documentation/Splunk/latest/SearchReference/Predict](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Predict)
+- *Practical Monitoring* (Mike Julian, O'Reilly)

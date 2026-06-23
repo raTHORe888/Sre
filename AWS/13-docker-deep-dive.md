@@ -428,3 +428,174 @@ docker compose down -v        # tear it all down
 - CIS Docker Benchmark — [cisecurity.org](https://www.cisecurity.org/benchmark/docker)
 - Trivy — [aquasecurity.github.io/trivy](https://aquasecurity.github.io/trivy/)
 - Sigstore cosign — [docs.sigstore.dev/cosign/overview](https://docs.sigstore.dev/cosign/overview/)
+
+---
+
+## Base image lifecycle — as a platform team
+
+> JD line covered: *Manage the lifecycle of base Docker images: security hardening, automated build pipelines, versioning, and distribution.*
+
+When a platform team owns base images, every other service inherits the team's security and reliability work for free. This is one of the highest-leverage things a Platform SRE owns.
+
+### 1. The full lifecycle
+
+```mermaid
+flowchart LR
+    A[Curated upstream<br/>Wolfi / Chainguard / UBI / distroless] --> B[Base image source repo]
+    B --> C[CI: build + harden + sign + SBOM + scan]
+    C --> D[Promote to candidate channel<br/>registry/base/runtime/python:cand]
+    D --> E[Soak tests: real apps build + run + pass smoke]
+    E --> F[Promote to stable channel<br/>registry/base/runtime/python:3.12.7 + :3.12 + :stable]
+    F --> G[Consumers FROM ...:3.12.7]
+    G --> H[Nightly rescan against CVE feed]
+    H --> I{New CVE matched?}
+    I -- yes --> J[Auto-rebuild + new version + open PRs in consumers]
+    I -- no  --> H
+    F --> K[Deprecation: announce N-2 EOL; admission policy blocks at EOL]
+```
+
+### 2. Channel + tag strategy
+
+| Channel | Tag examples | Audience |
+| --- | --- | --- |
+| `cand` | `python:3.12.7-cand-20260601` | Internal soak tests |
+| `stable` | `python:3.12.7`, `python:3.12`, `python:stable` | All app teams (default) |
+| `lts` | `python:3.11-lts` | Long-lived services that move slowly |
+| `deprecated` | `python:3.10` (read-only) | Soft-blocked at admission |
+
+Rules:
+- **Patch/minor versions are immutable digests**, never overwritten.
+- **Floating tags** (`:3.12`, `:stable`) move to point at the latest patch in their stream.
+- **`@sha256:` digest** is what production manifests pin to (see [03 Kubernetes ops](08-eks-docker-platform-ops.md)).
+
+### 3. CI pipeline for a base image
+
+```yaml
+# .github/workflows/base-python.yml
+name: base-python
+on:
+  push: { branches: [main] }
+  schedule: [{ cron: "0 2 * * *" }]   # nightly rebuild on CVE feed
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    permissions: { contents: read, id-token: write, packages: write }
+    strategy: { matrix: { python: ["3.11", "3.12"] } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build
+        uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: ./python
+          build-args: |
+            UPSTREAM=cgr.dev/chainguard/python:${{ matrix.python }}-dev
+          tags: |
+            registry.example.com/base/python:${{ matrix.python }}-cand-${{ github.run_id }}
+          push: true
+      - name: Vulnerability scan
+        run: trivy image --severity HIGH,CRITICAL --exit-code 1 registry.example.com/base/python:${{ matrix.python }}-cand-${{ github.run_id }}
+      - name: SBOM
+        uses: anchore/sbom-action@v0
+        with: { image: registry.example.com/base/python:${{ matrix.python }}-cand-${{ github.run_id }} }
+      - uses: sigstore/cosign-installer@v3
+      - run: cosign sign --yes registry.example.com/base/python@${{ steps.build.outputs.digest }}
+      - name: Soak — build a sample consumer
+        run: |
+          docker build -t soak-${{ matrix.python }} \
+            --build-arg BASE=registry.example.com/base/python@${{ steps.build.outputs.digest }} \
+            ./soak/python
+          docker run --rm soak-${{ matrix.python }} python -c 'import sys; print(sys.version)'
+      - name: Promote (only if soak passes)
+        run: |
+          docker buildx imagetools create \
+            --tag registry.example.com/base/python:${{ matrix.python }} \
+            registry.example.com/base/python@${{ steps.build.outputs.digest }}
+```
+
+### 4. A hardened Python base Dockerfile (multi-stage with locked deps)
+
+```dockerfile
+# syntax=docker/dockerfile:1.7
+ARG UPSTREAM=cgr.dev/chainguard/python:3.12-dev
+FROM ${UPSTREAM} AS build
+USER 0
+WORKDIR /opt
+COPY constraints.txt requirements-platform.txt ./
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-deps -c constraints.txt -r requirements-platform.txt
+
+FROM cgr.dev/chainguard/python:3.12
+LABEL org.opencontainers.image.title="base/python" \
+      org.opencontainers.image.vendor="platform-sre" \
+      org.opencontainers.image.source="https://github.com/org/base-images"
+COPY --from=build /opt /opt
+ENV PYTHONPATH=/opt PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+USER 65532:65532
+ENTRYPOINT ["python"]
+```
+
+### 5. Distribution — make it fast and resilient
+
+- **Pull-through cache** in each region (ECR cache, Harbor proxy, or Artifactory remote) so builds don't hammer the origin.
+- **Geo-replicated registry** for multi-region clusters.
+- **Rate limits** + **registry tokens** scoped per team to detect runaway pulls.
+- **Cosign verification at admission** (Kyverno / sigstore policy controller) so unsigned images can't run.
+
+```mermaid
+flowchart LR
+    DEV[Dev / CI build] -- pull --> CACHE[Regional pull-through cache]
+    CACHE -- on miss --> ORIGIN[Origin registry]
+    K8S[Cluster admission] -- verify signature --> COSIGN[Sigstore]
+    K8S -- pull --> CACHE
+```
+
+### 6. Operating base images as a tier-1 service
+
+SLOs to publish:
+
+| Indicator | Target |
+| --- | --- |
+| Base image build success rate | > 99% |
+| Time-to-rebuild on new CVE feed | < 24 h |
+| % consumers on supported (non-EOL) base | > 99% |
+| Image pull p95 latency in region | < 5 s for 200 MB image |
+| Signed-image admission failure rate | < 0.1% |
+
+Deprecation workflow:
+
+```mermaid
+flowchart TD
+    A[Announce EOL date: T-90d] --> B[Add deprecation annotation + warning in pull logs]
+    B --> C[T-30d: open auto-PRs in consumer repos]
+    C --> D[T-7d: registry returns 410 on EOL tags in non-prod]
+    D --> E[T+0:  admission policy blocks EOL tag in prod]
+    E --> F[T+30: remove image from registry; SBOMs archived]
+```
+
+### 7. What good looks like (base images)
+
+- **Every app FROM** lands on a curated, signed, scanned, SBOM'd base image owned by the platform team.
+- **Nightly rebuild + soak** catches CVEs before consumers notice.
+- **Floating tags + immutable digests** — fast paths for non-prod, pinned digests for prod.
+- **Admission policy** enforces signed images + non-EOL tags.
+- **Deprecation calendar** + auto-PRs make upgrades self-service.
+
+### 8. Anti-patterns (base images)
+
+- `FROM ubuntu:latest` in every app's Dockerfile, hand-maintained.
+- One huge "company-base" image with Python, Node, Go, and curl all in it.
+- Mutable tags in prod (`:3.12` instead of a digest) — surprise rollouts.
+- No signature verification — anyone with registry write access can ship code to prod.
+- "Just bump it" upgrades with no soak step — first sign of break is at 3 AM.
+
+### 9. References (base images)
+
+- Chainguard Images — [edu.chainguard.dev](https://edu.chainguard.dev/)
+- Distroless — [github.com/GoogleContainerTools/distroless](https://github.com/GoogleContainerTools/distroless)
+- Red Hat UBI — [catalog.redhat.com/software/base-images](https://catalog.redhat.com/software/base-images)
+- SLSA — [slsa.dev](https://slsa.dev/)
+- Sigstore — [sigstore.dev](https://www.sigstore.dev/)
+- Kyverno verify-images — [kyverno.io/docs/writing-policies/verify-images](https://kyverno.io/docs/writing-policies/verify-images/)
+- ECR pull-through cache — [docs.aws.amazon.com/AmazonECR/latest/userguide/pull-through-cache.html](https://docs.aws.amazon.com/AmazonECR/latest/userguide/pull-through-cache.html)
